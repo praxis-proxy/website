@@ -138,7 +138,7 @@ def check_catalog_objects(*, fetch: bool) -> None:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             ).returncode == 0
             if not exists and fetch:
-                run(["git", "-C", str(repo), "fetch", "--depth=1", "origin", f"refs/tags/{tag}:refs/tags/{tag}"])
+                run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin", f"refs/tags/{tag}:refs/tags/{tag}"])
             if not exists and not fetch:
                 raise RuntimeError(f"missing {product} release tag {tag}; run make init")
             actual = git(repo, "rev-parse", f"{tag}^{{commit}}")
@@ -230,7 +230,7 @@ def update_doc_versions() -> None:
             current = next(release for release in config["releases"] if release["default"])
             skipped.append(f"{product}: no published stable release; kept {current['tag']}")
             continue
-        run(["git", "-C", str(repo), "fetch", "--depth=1", "origin", f"refs/tags/{tag}:refs/tags/{tag}"])
+        run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin", f"refs/tags/{tag}:refs/tags/{tag}"])
         sha = git(repo, "rev-parse", f"{tag}^{{commit}}")
         existing = next((release for release in config["releases"] if release["tag"] == tag), None)
         if existing and existing["sha"] != sha:
@@ -1732,7 +1732,7 @@ def add_docs_version(product: str, ref: str) -> None:
     if any(release["version"] == ref or release["tag"] == ref for release in config["releases"]):
         raise RuntimeError(f"{product} already has a catalog entry for {ref}")
     repo = SOURCES / product
-    run(["git", "-C", str(repo), "fetch", "--depth=1", "origin", f"refs/tags/{ref}:refs/tags/{ref}"])
+    run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin", f"refs/tags/{ref}:refs/tags/{ref}"])
     sha = git(repo, "rev-parse", f"{ref}^{{commit}}")
     for required in config["required"]:
         result = subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{sha}:{required}"])
