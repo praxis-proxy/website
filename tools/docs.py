@@ -131,16 +131,25 @@ def check_catalog_objects(*, fetch: bool) -> None:
     data = catalog()["products"]
     for product, config in data.items():
         repo = SOURCES / product
+        missing = [
+            release["tag"]
+            for release in config["releases"]
+            if subprocess.run(
+                ["git", "-C", str(repo), "rev-parse", "--verify", f"refs/tags/{release['tag']}^{{commit}}"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ).returncode != 0
+        ]
+        if missing and not fetch:
+            raise RuntimeError(f"missing {product} release tag(s) {', '.join(missing)}; run make init")
+        if missing:
+            # Fetch every missing tag in one call. A per-tag loop rewrites the
+            # shallow submodule's .git/shallow on each iteration, and the next
+            # fetch aborts with "shallow file has changed since we read it"; a
+            # single fetch writes that file once.
+            run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin",
+                 *(f"refs/tags/{tag}:refs/tags/{tag}" for tag in missing)])
         for release in config["releases"]:
             tag = release["tag"]
-            exists = subprocess.run(
-                ["git", "-C", str(repo), "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            ).returncode == 0
-            if not exists and fetch:
-                run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin", f"refs/tags/{tag}:refs/tags/{tag}"])
-            if not exists and not fetch:
-                raise RuntimeError(f"missing {product} release tag {tag}; run make init")
             actual = git(repo, "rev-parse", f"{tag}^{{commit}}")
             if actual != release["sha"]:
                 raise RuntimeError(f"{product} {tag} resolved to {actual}, catalog records {release['sha']}")
