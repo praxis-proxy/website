@@ -522,7 +522,8 @@ def example_metadata(product: str, source_path: str, content: bytes, description
     global _EXAMPLE_METADATA_CACHE
     if _EXAMPLE_METADATA_CACHE is None:
         _EXAMPLE_METADATA_CACHE = json.loads(EXAMPLE_METADATA.read_text(encoding="utf-8"))
-    authored = _EXAMPLE_METADATA_CACHE.get(product, {}).get(source_path, {})
+    product_meta = _EXAMPLE_METADATA_CACHE.get(product, {})
+    authored = product_meta.get(source_path, {})
     text = content.decode("utf-8", "replace")
     title = PurePosixPath(source_path).stem.replace("-", " ").replace("_", " ").title()
     group = PurePosixPath(source_path).parent.relative_to("examples/configs").as_posix()
@@ -546,10 +547,14 @@ def example_metadata(product: str, source_path: str, content: bytes, description
         )
     outcome = authored.get("outcome")
     search_terms = list(dict.fromkeys([task, summary, group, *prerequisites]))
+    # Curated showcase rank: position of this path in the product's metadata
+    # key sequence. Drives featured-example ordering; unauthored paths sort last.
+    featured_order = list(product_meta).index(source_path) if source_path in product_meta else len(product_meta)
     return {
         "title": title, "summary": summary, "task": task, "group": group,
         "category": category, "prerequisites": prerequisites, "outcome": outcome,
-        "featured": bool(authored.get("featured")), "search_terms": search_terms,
+        "featured": bool(authored.get("featured")), "featured_order": featured_order,
+        "search_terms": search_terms,
     }
 
 
@@ -671,7 +676,7 @@ def example_page_frontmatter(context: ExampleContext, source_path: str, output_p
             "example_category": details["category"], "example_task": details["task"],
             "example_group": details["group"], "example_prerequisites": details["prerequisites"],
             "example_outcome": details["outcome"], "example_featured": details["featured"],
-            "example_search": details["search_terms"],
+            "example_order": details["featured_order"], "example_search": details["search_terms"],
         })
     if version == "dev" and context.edit_branch:
         metadata["edit_url"] = f"{config['repo']}/edit/{context.edit_branch}/{source_path}"
@@ -742,8 +747,11 @@ def write_example_catalog_index(context: ExampleContext, samples: list[tuple[str
     )
     descriptions = context.descriptions
     index_source = "examples/README.md" if "examples/README.md" in context.known_paths else "examples"
-    featured = [(path, body) for path, body in sorted(configs.items())
-                if example_metadata(product, path, body, descriptions)["featured"]]
+    featured = sorted(
+        (item for item in configs.items()
+         if example_metadata(product, item[0], item[1], descriptions)["featured"]),
+        key=lambda item: example_metadata(product, item[0], item[1], descriptions)["featured_order"],
+    )
     categories = sorted({PurePosixPath(path).relative_to("examples/configs").parts[0] for path in configs
                          if PurePosixPath(path).parent.as_posix() != "examples/configs"})
     lines = [
