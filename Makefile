@@ -6,7 +6,7 @@ HUGO_DESTINATION ?= public
 CONTAINER_USER = --user $(shell id -u):$(shell id -g)
 CONTAINER_MAKE = docker compose run --build --rm $(CONTAINER_USER) website make HUGO_DESTINATION="$(HUGO_DESTINATION)"
 
-.PHONY: help init init-in-container build build-in-container serve serve-in-container check check-in-container check-doc-versions update-doc-versions update-doc-versions-in-container update-dev-versions update-docs update-docs-in-container add-docs-version add-docs-version-in-container clean
+.PHONY: help init init-in-container build build-in-container serve serve-in-container check check-in-container check-doc-versions update-doc-versions update-doc-versions-in-container update-dev-versions update-dev-versions-in-container update-docs update-docs-in-container add-docs-version add-docs-version-in-container clean
 
 help:
 	@printf '%s\n' \
@@ -73,6 +73,9 @@ update-doc-versions-in-container:
 	python3 tools/docs.py update-doc-versions
 
 update-dev-versions:
+	$(CONTAINER_MAKE) update-dev-versions-in-container
+
+update-dev-versions-in-container:
 	python3 tools/docs.py update-dev-versions
 
 update-docs:

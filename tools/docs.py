@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import html
 import json
 import os
@@ -81,6 +82,7 @@ def run(args: list[str], *, cwd: Path = ROOT, capture: bool = False) -> str:
     return result.stdout.strip() if capture and result.stdout else ""
 
 
+@functools.lru_cache(maxsize=1)
 def catalog() -> dict:
     data = json.loads(CATALOG.read_text(encoding="utf-8"))
     for product, config in data["products"].items():
@@ -299,6 +301,7 @@ def update_doc_versions() -> None:
             changed.append(f"{product}: source pointer -> {tag} ({sha})")
 
     CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
     if changed:
         print("Updated documentation versions:\n" + "\n".join(changed))
     elif not skipped:
@@ -913,6 +916,15 @@ def map_product_doc(config: dict, source_path: str) -> str | None:
     return relative.as_posix()
 
 
+@functools.lru_cache(maxsize=None)
+def blob_exists(product: str, sha: str, path: str) -> bool:
+    """Whether a path exists in a product source tree at a commit (memoized)."""
+    return subprocess.run(
+        ["git", "-C", str(SOURCES / product), "cat-file", "-e", f"{sha}:{path}"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
+
+
 def rewrite_cross_product(raw: str) -> str:
     parts = urlsplit(raw)
     if parts.netloc.lower() != "github.com":
@@ -935,10 +947,7 @@ def rewrite_cross_product(raw: str) -> str:
     # at that version; otherwise keep the upstream link (e.g. a page that exists
     # on a branch but not in the selected release).
     release = next(release for release in config["releases"] if release["version"] == version)
-    if subprocess.run(
-        ["git", "-C", str(SOURCES / product), "cat-file", "-e", f"{release['sha']}:{source_rel}"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    ).returncode != 0:
+    if not blob_exists(product, release["sha"], source_rel):
         return raw
     return urlunsplit(("", "", site_url(product, version, mapped), parts.query, parts.fragment))
 
@@ -1838,6 +1847,7 @@ def add_docs_version(product: str, ref: str) -> None:
     config["releases"].append({"version": ref, "label": ref, "tag": ref, "sha": sha, "default": False})
     config["releases"].sort(key=lambda entry: tuple(int(n) for n in re.findall(r"\d+", entry["version"])), reverse=True)
     CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
     print(f"Added {product} {ref} at {sha}; review data/docs_versions.json and promote its default explicitly if desired.")
 
 
@@ -1859,6 +1869,7 @@ def update_dev_versions() -> None:
             changed.append(f"{product}: development {ref} -> {sha}")
             development["sha"] = sha
     CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
     if changed:
         print("Updated development pointers:\n" + "\n".join(changed))
     else:
