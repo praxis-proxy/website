@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import html
 import json
 import os
@@ -81,6 +82,7 @@ def run(args: list[str], *, cwd: Path = ROOT, capture: bool = False) -> str:
     return result.stdout.strip() if capture and result.stdout else ""
 
 
+@functools.lru_cache(maxsize=1)
 def catalog() -> dict:
     data = json.loads(CATALOG.read_text(encoding="utf-8"))
     for product, config in data["products"].items():
@@ -97,6 +99,18 @@ def catalog() -> dict:
         for release in releases:
             if not RELEASE_TAG.fullmatch(release["tag"]) or not GIT_SHA.fullmatch(release["sha"]):
                 raise RuntimeError(f"{product} {release['version']} must have a release tag and full commit SHA")
+        development = config.get("development")
+        if development and development.get("sha"):
+            if not development.get("ref"):
+                raise RuntimeError(f"{product} development tracking must name a ref")
+            if not GIT_SHA.fullmatch(development["sha"]):
+                raise RuntimeError(f"{product} development must record a full commit SHA")
+        exclude = config.get("exclude", [])
+        if not isinstance(exclude, list) or not all(isinstance(entry, str) for entry in exclude):
+            raise RuntimeError(f"{product} exclude must be a list of source paths")
+        for required in config["required"]:
+            if excluded_path(required, exclude):
+                raise RuntimeError(f"{product} excludes a required docs path: {required}")
     return data
 
 
@@ -139,15 +153,23 @@ def check_catalog_objects(*, fetch: bool) -> None:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             ).returncode != 0
         ]
-        if missing and not fetch:
-            raise RuntimeError(f"missing {product} release tag(s) {', '.join(missing)}; run make init")
-        if missing:
-            # Fetch every missing tag in one call. A per-tag loop rewrites the
-            # shallow submodule's .git/shallow on each iteration, and the next
-            # fetch aborts with "shallow file has changed since we read it"; a
-            # single fetch writes that file once.
+        development = config.get("development")
+        dev_sha = development["sha"] if development and development.get("sha") else None
+        dev_missing = bool(dev_sha) and subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", f"{dev_sha}^{{commit}}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        ).returncode != 0
+        if (missing or dev_missing) and not fetch:
+            targets = list(missing) + ([f"development {dev_sha}"] if dev_missing else [])
+            raise RuntimeError(f"missing {product} source object(s) {', '.join(targets)}; run make init")
+        if missing or dev_missing:
+            # Fetch every missing object in one call. A per-object loop rewrites
+            # the shallow submodule's .git/shallow on each iteration, and the
+            # next fetch aborts with "shallow file has changed since we read it";
+            # a single fetch writes that file once.
             run(["git", "-C", str(repo), "fetch", "--no-tags", "--depth=1", "origin",
-                 *(f"refs/tags/{tag}:refs/tags/{tag}" for tag in missing)])
+                 *(f"refs/tags/{tag}:refs/tags/{tag}" for tag in missing),
+                 *([dev_sha] if dev_missing else [])])
         for release in config["releases"]:
             tag = release["tag"]
             actual = git(repo, "rev-parse", f"{tag}^{{commit}}")
@@ -279,6 +301,7 @@ def update_doc_versions() -> None:
             changed.append(f"{product}: source pointer -> {tag} ({sha})")
 
     CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
     if changed:
         print("Updated documentation versions:\n" + "\n".join(changed))
     elif not skipped:
@@ -296,16 +319,27 @@ def init() -> None:
     print("Source submodules and cataloged release objects are ready.")
 
 
-def selected_files(repo: Path, config: dict) -> list[Path]:
-    chosen: set[Path] = set()
-    for pattern in config["include"]:
+def excluded_path(rel: str, exclude: list[str]) -> bool:
+    """Match an exclude entry: an exact path or a `dir/**` subtree."""
+    for pattern in exclude:
         if pattern.endswith("/**"):
-            base = repo / pattern[:-3]
-            if base.exists():
-                chosen.update(path for path in base.rglob("*") if path.is_file())
-        else:
-            path = repo / pattern
-            if path.is_file():
+            root = pattern[:-3]
+            if rel == root or rel.startswith(root + "/"):
+                return True
+        elif rel == pattern:
+            return True
+    return False
+
+
+def selected_files(repo: Path, config: dict) -> list[Path]:
+    # Every Markdown file under the content root is published unless it is
+    # listed in `exclude`, so new upstream pages appear with no catalog edit.
+    content_root = repo / config["content_root"]
+    exclude = config.get("exclude", [])
+    chosen: set[Path] = set()
+    if content_root.is_dir():
+        for path in content_root.rglob("*.md"):
+            if path.is_file() and not excluded_path(path.relative_to(repo).as_posix(), exclude):
                 chosen.add(path)
     for required in config["required"]:
         if not (repo / required).is_file():
@@ -314,9 +348,8 @@ def selected_files(repo: Path, config: dict) -> list[Path]:
 
 
 def archived_source(repo: Path, sha: str, config: dict, destination: Path) -> None:
-    roots = sorted({pattern[:-3] for pattern in config["include"] if pattern.endswith("/**")})
-    exact = [pattern for pattern in config["include"] if not pattern.endswith("/**")]
-    paths = [path for path in roots + exact if subprocess.run(
+    roots = [config["content_root"]]
+    paths = [path for path in roots if subprocess.run(
         ["git", "-C", str(repo), "cat-file", "-e", f"{sha}:{path}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0]
@@ -871,14 +904,25 @@ def check_curated_example_paths() -> None:
 
 
 def map_product_doc(config: dict, source_path: str) -> str | None:
-    allowed = any(source_path == pattern or (pattern.endswith("/**") and source_path.startswith(pattern[:-2]))
-                  for pattern in config["include"])
-    if not allowed or not source_path.endswith(".md"):
+    content_root = config["content_root"]
+    under_root = source_path == content_root or source_path.startswith(content_root + "/")
+    if not source_path.endswith(".md") or not under_root:
         return None
-    relative = PurePosixPath(source_path).relative_to(PurePosixPath(config["content_root"]))
+    if excluded_path(source_path, config.get("exclude", [])):
+        return None
+    relative = PurePosixPath(source_path).relative_to(PurePosixPath(content_root))
     if source_path in config.get("indexes", []):
         return (relative.parent / "_index.md").as_posix()
     return relative.as_posix()
+
+
+@functools.lru_cache(maxsize=None)
+def blob_exists(product: str, sha: str, path: str) -> bool:
+    """Whether a path exists in a product source tree at a commit (memoized)."""
+    return subprocess.run(
+        ["git", "-C", str(SOURCES / product), "cat-file", "-e", f"{sha}:{path}"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode == 0
 
 
 def rewrite_cross_product(raw: str) -> str:
@@ -895,8 +939,15 @@ def rewrite_cross_product(raw: str) -> str:
     config = products[product]
     ref = fields[3]
     version = ref if any(release["version"] == ref for release in config["releases"]) else config["default"]
-    mapped = map_product_doc(config, "/".join(fields[4:]))
+    source_rel = "/".join(fields[4:])
+    mapped = map_product_doc(config, source_rel)
     if mapped is None:
+        return raw
+    # Only rewrite to an internal URL when the target page is actually published
+    # at that version; otherwise keep the upstream link (e.g. a page that exists
+    # on a branch but not in the selected release).
+    release = next(release for release in config["releases"] if release["version"] == version)
+    if not blob_exists(product, release["sha"], source_rel):
         return raw
     return urlunsplit(("", "", site_url(product, version, mapped), parts.query, parts.fragment))
 
@@ -1269,6 +1320,14 @@ def fallback_topic(source_path: str) -> str:
     return "Core Concepts"
 
 
+def fallback_summary(product: str, source_path: str) -> str:
+    path = PurePosixPath(source_path)
+    stem = path.stem
+    title = path.parent.name if stem in {"README", "index", "_index"} else stem
+    title = title.replace("_", " ").replace("-", " ").strip() or product
+    return f"Documentation for {title} in the {product} project."
+
+
 def page_metadata(product: str, source_path: str, original: str, navigation: dict) -> dict:
     product_navigation = navigation.get("products", {}).get(product, {})
     override = product_navigation.get("articles", {}).get(source_path, {})
@@ -1277,7 +1336,11 @@ def page_metadata(product: str, source_path: str, original: str, navigation: dic
         raise RuntimeError(f"invalid reader_need {need!r} for {product}:{source_path}")
     summary = override.get("summary") or summarize(original)
     if len(summary) < 20 or summary.endswith(":"):
-        raise RuntimeError(f"{product}:{source_path} needs a meaningful docs_navigation summary")
+        # An authored override that is too short is a real error; a weak derived
+        # summary for an uncurated page falls back to a title-based sentence.
+        if override.get("summary"):
+            raise RuntimeError(f"{product}:{source_path} needs a meaningful docs_navigation summary")
+        summary = fallback_summary(product, source_path)
     return {
         "reader_need": need,
         "topic": override.get("topic") or fallback_topic(source_path),
@@ -1300,10 +1363,14 @@ def validate_navigation(source_catalog: dict, navigation: dict) -> None:
             for path in selected_files(SOURCES / product, config)
             if path.suffix.lower() == ".md"
         }
+        fallbacks: list[str] = []
         for source_path in selected:
             metadata = articles.get(source_path)
             if metadata is None:
-                raise RuntimeError(f"{product} public page lacks docs_navigation metadata: {source_path}")
+                # Pages without curated metadata are still published; they use
+                # derived reader need, topic, ordering, and summary.
+                fallbacks.append(source_path)
+                continue
             if metadata.get("reader_need") not in (*ARTICLE_NEEDS, *OTHER_NEEDS):
                 raise RuntimeError(f"invalid reader_need for {product}:{source_path}")
             if not isinstance(metadata.get("topic"), str) or not metadata["topic"].strip():
@@ -1316,6 +1383,11 @@ def validate_navigation(source_catalog: dict, navigation: dict) -> None:
             summary = metadata.get("summary") or summarize((SOURCES / product / source_path).read_text(encoding="utf-8"))
             if len(summary) < 20 or summary.endswith(":"):
                 raise RuntimeError(f"{product}:{source_path} needs a meaningful docs_navigation summary")
+        if fallbacks:
+            print(f"warning: {product} publishes {len(fallbacks)} page(s) using fallback navigation "
+                  f"metadata (no docs_navigation.json entry):")
+            for source_path in sorted(fallbacks):
+                print(f"  - {source_path}")
 
 
 def write_example_coverage_report(source_catalog: dict, coverage: dict) -> None:
@@ -1632,30 +1704,46 @@ def prepare(mode: str) -> None:
                              "sha": sha, "default": release["default"]})
 
         working = mode == "serve"
-        dev_sha = source_commit if working or not source_status else expected
-        dev_label = f"Development ({dev_sha[:12]})"
+        development = config.get("development")
+        archive_dev = (not working) and bool(development and development.get("sha"))
         version = "dev"
-        source_files = selected_files(repo, config)
-        known_paths = repo_paths(repo, source_commit, working=True)
+        if archive_dev:
+            # Build the development channel from the tracked upstream ref so it
+            # follows unreleased docs independently of the release pointer.
+            dev_sha = development["sha"]
+            dev_source = CACHE / "source" / product / "dev"
+            shutil.rmtree(dev_source, ignore_errors=True)
+            archived_source(repo, dev_sha, config, dev_source)
+            dev_working = False
+            dev_status = ""
+            edit_branch = development["ref"]
+        else:
+            dev_sha = source_commit if working or not source_status else expected
+            dev_source = repo
+            dev_working = True
+            dev_status = source_status
+            edit_branch = branch
+            if not edit_branch:
+                result = subprocess.run(["git", "-C", str(repo), "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                edit_branch = result.stdout.strip().removeprefix("origin/") if result.returncode == 0 else ""
+        dev_label = f"Development ({dev_sha[:12]})"
+        source_files = selected_files(dev_source, config)
+        known_paths = repo_paths(repo, dev_sha, working=dev_working)
         mapping = {}
         for source_file in source_files:
-            source_rel = source_file.relative_to(repo).as_posix()
+            source_rel = source_file.relative_to(dev_source).as_posix()
             if source_file.suffix.lower() != ".md":
                 continue
             relative = PurePosixPath(source_rel).relative_to(PurePosixPath(config["content_root"]))
             mapping[source_rel] = (relative.parent / "_index.md").as_posix() if source_rel in config.get("indexes", []) else relative.as_posix()
         examples, example_dirs, example_descriptions = linked_examples(
-            source_files, repo, repo=repo, sha=dev_sha, working=True, known_paths=known_paths,
+            source_files, dev_source, repo=repo, sha=dev_sha, working=dev_working, known_paths=known_paths,
         )
-        examples.update(tracked_example_configs(repo, dev_sha, working=True))
+        examples.update(tracked_example_configs(repo, dev_sha, working=dev_working))
         mapping.update(example_source_mapping(examples, example_dirs))
-        edit_branch = branch
-        if not edit_branch:
-            result = subprocess.run(["git", "-C", str(repo), "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
-                                    text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            edit_branch = result.stdout.strip().removeprefix("origin/") if result.returncode == 0 else ""
         context = ExampleContext(product, "dev", dev_label, dev_sha, config, repo,
-                                 example_descriptions, known_paths, STATIC_OUT, True, source_status, edit_branch)
+                                 example_descriptions, known_paths, STATIC_OUT, dev_working, dev_status, edit_branch)
         copy_extra_assets(context)
         example_coverage[(product, "dev")] = (
             dev_sha, {path: example_metadata(product, path, body, example_descriptions)
@@ -1663,7 +1751,7 @@ def prepare(mode: str) -> None:
                       if path.startswith("examples/configs/") and PurePosixPath(path).suffix.lower() in {".yaml", ".yml"}},
         )
         for source_file in source_files:
-            source_rel = source_file.relative_to(repo).as_posix()
+            source_rel = source_file.relative_to(dev_source).as_posix()
             if source_file.suffix.lower() != ".md":
                 continue
             output_path = mapping[source_rel]
@@ -1673,7 +1761,7 @@ def prepare(mode: str) -> None:
             page_body = adapt_page_markdown(
                 original, product=product, version=version, config=config, repo=repo, sha=dev_sha,
                 title=title_for(source_file, original), source_path=source_rel, selected=mapping,
-                assets=STATIC_OUT, working=True, known_paths=known_paths,
+                assets=STATIC_OUT, working=dev_working, known_paths=known_paths,
             )
             edit_url = f"{config['repo']}/edit/{edit_branch}/{source_rel}" if edit_branch else None
             source_mount = re.escape(f".cache/docs/{product}/dev/")
@@ -1693,11 +1781,11 @@ def prepare(mode: str) -> None:
                 "path_base_for_github_subdir": path_base,
                 "description": content_metadata["summary"],
                 **content_metadata,
-                "preview_dirty": bool(source_status), "edit_url": edit_url,
+                "preview_dirty": bool(dev_status), "edit_url": edit_url,
                 "cascade": {
                     "product": product, "version": version, "version_label": dev_label,
                     "source_commit": dev_sha, "version_archive": False,
-                    "preview_dirty": bool(source_status),
+                    "preview_dirty": bool(dev_status),
                 },
             }
             shortcode = "{{< docs-version >}}\n\n{{< docs-mobile-toc >}}\n\n"
@@ -1708,11 +1796,12 @@ def prepare(mode: str) -> None:
             )
             source_map.append({"product": product, "version": version, "source_path": source_rel,
                                "content_path": output_path, "source_commit": dev_sha,
-                               "url": site_url(product, version, output_path), "dirty": bool(source_status)})
+                               "url": site_url(product, version, output_path), "dirty": bool(dev_status)})
         source_map.extend(write_example_pages(context, examples, example_dirs))
         versions.append({"slug": "dev", "label": dev_label, "sha": dev_sha, "default": False})
         products_out[product] = {**config, "versions": versions}
-        print(f"{product}: dev {dev_sha[:12]}" + (" (dirty preview)" if source_status else ""))
+        print(f"{product}: dev {dev_sha[:12]}" + (" (dirty preview)" if dev_status else "")
+              + (" (tracking {})".format(edit_branch) if archive_dev else ""))
 
     (DATA_OUT / "docs_build_versions.json").write_text(
         json.dumps({"products": products_out}, indent=2) + "\n", encoding="utf-8"
@@ -1758,7 +1847,33 @@ def add_docs_version(product: str, ref: str) -> None:
     config["releases"].append({"version": ref, "label": ref, "tag": ref, "sha": sha, "default": False})
     config["releases"].sort(key=lambda entry: tuple(int(n) for n in re.findall(r"\d+", entry["version"])), reverse=True)
     CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
     print(f"Added {product} {ref} at {sha}; review data/docs_versions.json and promote its default explicitly if desired.")
+
+
+def update_dev_versions() -> None:
+    data = catalog()
+    products = data["products"]
+    changed: list[str] = []
+    for product, config in products.items():
+        development = config.get("development")
+        if not development or not development.get("ref"):
+            continue
+        ref = development["ref"]
+        url = repository_url(product)
+        output = run(["git", "ls-remote", url, f"refs/heads/{ref}"], capture=True)
+        sha = output.split()[0] if output else ""
+        if not GIT_SHA.fullmatch(sha):
+            raise RuntimeError(f"could not resolve {product} development ref {ref!r} at {url}")
+        if development.get("sha") != sha:
+            changed.append(f"{product}: development {ref} -> {sha}")
+            development["sha"] = sha
+    CATALOG.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    catalog.cache_clear()
+    if changed:
+        print("Updated development pointers:\n" + "\n".join(changed))
+    else:
+        print("Development pointers already match the tracked refs.")
 
 
 def main() -> None:
@@ -1768,6 +1883,7 @@ def main() -> None:
     commands.add_parser("check-adapter")
     commands.add_parser("check-release-versions")
     commands.add_parser("update-doc-versions")
+    commands.add_parser("update-dev-versions")
     prepare_parser = commands.add_parser("prepare")
     prepare_parser.add_argument("--mode", choices=("build", "serve"), required=True)
     for name in ("update-docs", "add-docs-version"):
@@ -1785,6 +1901,8 @@ def main() -> None:
             check_release_versions()
         elif args.command == "update-doc-versions":
             update_doc_versions()
+        elif args.command == "update-dev-versions":
+            update_dev_versions()
         elif args.command == "prepare":
             prepare(args.mode)
         elif args.command == "update-docs":

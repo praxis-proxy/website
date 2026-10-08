@@ -29,16 +29,29 @@ ownership decisions.
   guidance](https://www.docsy.dev/docs/content/lookandfeel/) before changing
   theme presentation.
 - `data/docs_versions.json` independently selects each project's releases
-  and default. `make check-doc-versions` compares defaults with the latest
+  and default. Every Markdown file under a project's `content_root` is
+  published automatically; list a path (or a `dir/**` subtree) in that
+  project's `exclude` array to keep it off the site. New upstream pages need
+  no catalog edit. `required` paths must stay publishable (not excluded).
+  `make check-doc-versions` compares defaults with the latest
   published stable releases; `make update-doc-versions` validates required
   docs, adds missing snapshots, promotes those defaults, and moves the source
   submodule pointers. Review its catalog and pointer changes before committing.
   Matching version numbers do not establish cross-project compatibility.
+  Each project's optional `development` entry (`{ ref, sha }`) feeds the
+  unreleased "Development" (`dev`) channel, which is built from that SHA
+  independently of the release pointer; `make update-dev-versions` refreshes
+  those SHAs from the tracked upstream ref. `make serve` still previews the
+  live submodule working tree for `dev`. Keep the dev channel clearly labelled
+  as unreleased and excluded from search/indexing.
 - `data/docs_navigation.json` maps source pages to Diátaxis reader needs,
   topics, order, summaries, and related links. Update metadata when an
   imported page's site grouping or label changes; do not duplicate that logic
-  in templates. Use the [Diátaxis framework](https://diataxis.fr/) to classify
-  a page by its reader's need, not its filename.
+  in templates. Metadata is optional: a published page without an entry falls
+  back to a derived reader need, topic, order, and summary, and `prepare`
+  prints a warning listing those pages so they can be curated. Use the
+  [Diátaxis framework](https://diataxis.fr/) to classify a page by its
+  reader's need, not its filename.
 - `data/example_metadata.json` holds curated task names, summaries,
   prerequisites, outcomes, and featured examples. Keep it aligned with the
   original source path and actual example behavior. Derive lists from source
