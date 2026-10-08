@@ -1132,6 +1132,91 @@
           "order": 10,
           "summary": "Replace the disposable v3 response store with a fresh v4 database before starting current releases; startup creates the required schema.",
           "related": []
+        },
+        "docs/store/legacy-item-position-repair.md": {
+          "source_path": "docs/store/legacy-item-position-repair.md",
+          "reader_need": "How-to",
+          "topic": "Store",
+          "order": 20,
+          "related": []
+        },
+        "docs/capacity-planning.md": {
+          "source_path": "docs/capacity-planning.md",
+          "reader_need": "Reference",
+          "topic": "Core Concepts",
+          "order": 20,
+          "related": []
+        },
+        "docs/migrating-to-0.2.md": {
+          "source_path": "docs/migrating-to-0.2.md",
+          "reader_need": "How-to",
+          "topic": "Core Concepts",
+          "order": 30,
+          "related": []
+        },
+        "docs/conformance/README.md": {
+          "source_path": "docs/conformance/README.md",
+          "reader_need": "Overview",
+          "topic": "Conformance",
+          "order": 20,
+          "related": []
+        },
+        "docs/conformance/openai-responses-state-conformance.md": {
+          "source_path": "docs/conformance/openai-responses-state-conformance.md",
+          "reader_need": "Reference",
+          "topic": "Conformance",
+          "order": 20,
+          "related": []
+        },
+        "docs/filters/ai_operation.md": {
+          "source_path": "docs/filters/ai_operation.md",
+          "reader_need": "Reference",
+          "topic": "AI Filters",
+          "order": 25,
+          "related": []
+        },
+        "docs/developing/flow-visualizers.md": {
+          "source_path": "docs/developing/flow-visualizers.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 10,
+          "related": []
+        },
+        "docs/developing/gpu-nightly-suite.md": {
+          "source_path": "docs/developing/gpu-nightly-suite.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 20,
+          "related": []
+        },
+        "docs/developing/llmd-integration-testing.md": {
+          "source_path": "docs/developing/llmd-integration-testing.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 30,
+          "related": []
+        },
+        "docs/developing/project-management.md": {
+          "source_path": "docs/developing/project-management.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 40,
+          "related": []
+        },
+        "docs/developing/vllm-qualification.md": {
+          "source_path": "docs/developing/vllm-qualification.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 50,
+          "related": []
+        },
+        "docs/anthropic-messages-replay-test-plan.md": {
+          "source_path": "docs/anthropic-messages-replay-test-plan.md",
+          "reader_need": "Explanation",
+          "topic": "Developing",
+          "order": 60,
+          "summary": "Defines the Anthropic Messages API request and response shapes Praxis AI should cover across replay, passthrough, and translation tests.",
+          "related": []
         }
       }
     },
