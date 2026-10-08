@@ -1,0 +1,48 @@
+name: Update docs versions
+
+on:
+  schedule:
+    # Weekly, Mondays 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: true
+
+      - name: Refresh docs defaults and source pointers
+        run: python3 tools/docs.py update-doc-versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Refresh development channel SHAs from tracked upstream refs
+        run: python3 tools/docs.py update-dev-versions
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7
+        with:
+          branch: automation/update-doc-versions
+          title: "chore(website): update docs versions to latest releases"
+          commit-message: "chore(website): update docs versions to latest releases"
+          body: |
+            Automated run of `update-doc-versions` + `update-dev-versions`.
+
+            - Promotes each project's docs default to the latest published stable
+              release and moves the matching submodule pointer.
+            - Refreshes the development channel SHAs (`development` in
+              `data/docs_versions.json`) from each project's tracked upstream ref
+              so the unreleased "Development" docs stay current.
+
+            Review the catalog and pointer changes before merging —
+            `make check-doc-versions` and `make check` gate this PR.
+
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
+          delete-branch: true

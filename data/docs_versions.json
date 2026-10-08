@@ -5,21 +5,12 @@
       "description": "A configurable HTTP and TCP proxy for routing traffic and applying built-in filters.",
       "content_root": "docs",
       "default": "v0.7.2",
-      "include": [
-        "docs/README.md",
-        "docs/quickstart.md",
-        "docs/features.md",
-        "docs/architecture/**",
-        "docs/operating/**",
-        "docs/filters/**",
-        "docs/benchmarks.md",
-        "docs/release.md",
-        "docs/developing/adding-filters.md",
-        "docs/developing/adding-protocols.md",
-        "docs/developing/conventions.md",
-        "docs/developing/dependencies.md",
-        "docs/developing/getting-started.md",
-        "docs/developing/type-design.md"
+      "development": {
+        "ref": "main",
+        "sha": "24731f91707e995b479026afdbe2b1bed89c22bb"
+      },
+      "exclude": [
+        "docs/proposals/**"
       ],
       "required": [
         "docs/README.md",
@@ -67,27 +58,15 @@
       "description": "An AI gateway built on the Praxis proxy runtime.",
       "content_root": "docs",
       "default": "v0.5.0",
+      "development": {
+        "ref": "main",
+        "sha": "e5be5007847ee9832ba77408c271f33dc807bbba"
+      },
       "status": "Praxis AI is alpha software; APIs and configuration may change before v1.0.0.",
       "extra_assets": [
         "assets/praxis-ai-architecture.svg"
       ],
-      "include": [
-        "docs/README.md",
-        "docs/quickstart.md",
-        "docs/features.md",
-        "docs/architecture/**",
-        "docs/filters/**",
-        "docs/anthropic-messages.md",
-        "docs/conformance/openresponses-translation.md",
-        "docs/developing/adding-filters.md",
-        "docs/developing/cli-vllm-through-praxis.md",
-        "docs/developing/fips.md",
-        "docs/developing/getting-started.md",
-        "docs/developing/type-design.md",
-        "docs/fips.md",
-        "docs/release.md",
-        "docs/store/schema-migration.md"
-      ],
+      "exclude": [],
       "required": [
         "docs/README.md",
         "docs/quickstart.md",
@@ -96,7 +75,8 @@
       ],
       "indexes": [
         "docs/README.md",
-        "docs/filters/README.md"
+        "docs/filters/README.md",
+        "docs/conformance/README.md"
       ],
       "releases": [
         {
@@ -127,11 +107,12 @@
       "description": "A policy runtime for authorization, identity, delegation, and data controls.",
       "content_root": "docs/content",
       "default": "v0.4.0",
+      "development": {
+        "ref": "main",
+        "sha": "d2bf93ca59799dc3a1900dd3ef67c7b03c7056fd"
+      },
       "status": "The public API is still evolving; breaking changes are documented in the changelog.",
-      "include": [
-        "docs/content/**",
-        "docs/images/**"
-      ],
+      "exclude": [],
       "required": [
         "docs/content/index.md",
         "docs/content/quickstart.md",
