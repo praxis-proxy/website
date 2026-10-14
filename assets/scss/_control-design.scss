@@ -27,7 +27,7 @@
 .home-hero__eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: #bcb4ff; box-shadow: 0 0 0 4px #bcb4ff12; }
 .home-hero--control h1 { font-size: clamp(3rem, 5.5vw, 5.25rem); line-height: 1.02; letter-spacing: -.064em; text-wrap: initial; }
 .home-hero--control .home-hero__lede { max-width: 41ch; font-size: clamp(1.02rem, 1.4vw, 1.18rem); margin-top: 1.7rem; line-height: 1.7; }
-.home-hero--control .home-hero__actions { margin-top: 2rem; gap: .7rem; }
+.home-hero--control .home-hero__actions { margin-top: 2rem; align-items: center; gap: 0.75rem 1.4rem; }
 .home-hero--control .home-hero__actions .btn { min-height: 48px; padding-inline: 1.1rem; border-radius: .35rem; font-size: .87rem; }
 .home-hero--control .home-hero__actions .btn-primary { box-shadow: 0 3px 24px #aaa5ff20; }
 .home-hero--control .home-hero__actions .btn-outline-primary { border-color: #565c82; background: #1b203040; }

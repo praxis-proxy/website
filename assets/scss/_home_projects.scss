@@ -70,7 +70,9 @@
 .project-spotlight--ai .project-spotlight__copy > p:not(.home-section__eyebrow) { color: #c5cde0; }
 .project-spotlight--ai .project-spotlight__link { background: #bcb4ff; color: #111528; }
 .project-spotlight--ai .project-spotlight__link:hover { background: #d3ceff; color: #111528; }
+.home-hero .project-spotlight__secondary,
 .project-spotlight--ai .project-spotlight__secondary { color: #e9edff; }
+.home-hero .project-spotlight__secondary:hover,
 .project-spotlight--ai .project-spotlight__secondary:hover { color: #bcb4ff; }
 .project-bento--ai { grid-template-columns: minmax(0, 1.35fr) minmax(10rem, .75fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
 .project-spotlight--ai .project-spotlight__feature, .project-spotlight--ai .project-spotlight__tile { border-color: #4a5277; background: #171d30; box-shadow: 0 1.4rem 4rem #05091866; }
