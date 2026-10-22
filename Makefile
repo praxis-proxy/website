@@ -8,12 +8,13 @@ LINK_PREFIX = $(shell printf '%s' '$(LINK_BASEURL)' | sed -E 's|^[a-zA-Z][a-zA-Z
 CONTAINER_USER = --user $(shell id -u):$(shell id -g)
 CONTAINER_MAKE = docker compose run --build --rm $(CONTAINER_USER) website make HUGO_DESTINATION="$(HUGO_DESTINATION)"
 
-.PHONY: help init init-in-container build build-in-container serve serve-in-container check check-in-container check-doc-versions update-doc-versions update-doc-versions-in-container update-dev-versions update-dev-versions-in-container update-docs update-docs-in-container add-docs-version add-docs-version-in-container clean
+.PHONY: help init init-in-container build build-in-container build-host serve serve-in-container check check-in-container check-doc-versions update-doc-versions update-doc-versions-in-container update-dev-versions update-dev-versions-in-container update-docs update-docs-in-container add-docs-version add-docs-version-in-container clean
 
 help:
 	@printf '%s\n' \
 	  'init               Initialize missing source submodules and site dependencies in Docker' \
 	  'build              Prepare every docs snapshot and build the complete site' \
+	  'build-host         Same as build-in-container, for Netlify and other non-Docker hosts' \
 	  'serve              Preview docs, including local source edits and revision state' \
 	  'check              Build and check generated internal links and fragments' \
 	  'check-doc-versions Verify catalog defaults match the latest published releases' \
@@ -41,6 +42,10 @@ init-in-container:
 
 build:
 	$(CONTAINER_MAKE) build-in-container
+
+# Host build used by Netlify Deploy Previews. Requires hugo, go, python3, npm, and make
+# on PATH. Honor HUGO_BASEURL (Hugo config env) for preview base URLs.
+build-host: build-in-container
 
 build-in-container: init-in-container
 	python3 tools/docs.py prepare --mode build

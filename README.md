@@ -35,6 +35,14 @@ The configured base URL defaults to `https://praxis-proxy.github.io/`. Override 
 HUGO_BASEURL=https://docs.example.com/ make build
 ```
 
+## Pull request previews and production
+
+Pull requests build a **Netlify Deploy Preview** through the existing Netlify GitHub integration. The build runs `make build-host` (same prepare and Hugo steps as the Docker build, without Docker) with `HUGO_BASEURL` set to the preview URL. Configuration lives in [`netlify.toml`](netlify.toml).
+
+Production publishing stays on **GitHub Pages** via `make build` and [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Netlify production deploys are skipped so the two hosts do not compete.
+
+In the Netlify site settings, keep **Deploy Previews** enabled for pull requests. The build command runs `git submodule update --init --recursive` so `sources/{praxis,ai,policy,grid}` are present for `tools/docs.py prepare` (those submodule URLs are HTTPS). If a submodule is private, grant the Netlify GitHub App or deploy key access to it. PR validation (`make check`) continues to run in GitHub Actions separately from the preview deploy.
+
 ## Source revisions and releases
 
 `sources/{praxis,ai,policy,grid}` are read-only documentation inputs. Git records their working revisions as submodule pointers. Release commits and defaults are in [`data/docs_versions.json`](data/docs_versions.json); each project is versioned independently. CI checks each default against that repository's latest published stable GitHub release. Run the check locally with `make check-doc-versions`; it uses the public GitHub API.
