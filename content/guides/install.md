@@ -54,7 +54,7 @@ An address such as `127.0.0.1` refers to the container itself. Configure an upst
 
 ### Build from source for development or gated features
 
-Build from source when contributing code or enabling a compile-time feature that the image does not include. Release {{< product-release product="praxis" />}} requires Rust 1.96.0, CMake 3.31 or newer, a C/C++ compiler, `pkg-config`, and OpenSSL development headers.
+Build from source when contributing code or enabling a compile-time feature that the image does not include. Release {{< product-release product="praxis" />}} uses the repository-pinned Rust 1.96.0 toolchain; the source manifest declares Rust 1.92+ as its minimum supported version. It also requires CMake 3.31 or newer, a C/C++ compiler, `pkg-config`, and OpenSSL development headers.
 
 {{< product-release product="praxis" >}}
 git clone https://github.com/praxis-proxy/praxis.git

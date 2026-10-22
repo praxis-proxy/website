@@ -41,6 +41,6 @@ Use {{< docs-link product="praxis" source="docs/operating/build-features.md" lab
 
 Praxis v0.7.2 is pre-v1. Its [security policy](https://github.com/praxis-proxy/praxis/blob/v0.7.2/SECURITY.md) says all 0.x releases are unsupported for security updates. The workspace uses the Rust lint `unsafe_code = "deny"`, with narrow explicitly expected SIMD intrinsics; that lint does not describe third-party dependencies or certify the binary.
 
-Praxis v0.7.2 depends on Praxis Policy Engine crate v0.3.1. Praxis AI v0.4.1 independently depends on Praxis crates v0.7.0. The documentation catalog's Policy default is v0.4.0. These independent docs releases are not a tested compatibility matrix; use the dependency versions in the relevant manifests and test the exact builds you combine.
+Praxis v0.7.2 depends on Praxis Policy Engine crate v0.3.1. The documentation catalog selects Praxis AI v0.7.0 and Policy v0.4.0 independently. These project releases are not a tested compatibility matrix; use the dependency versions in the relevant manifests and test the exact builds you combine.
 
-Praxis is licensed under [Apache-2.0](https://github.com/praxis-proxy/praxis/blob/v0.7.2/LICENSE). Building the v0.7.2 source requires Rust 1.96.0; see the [installation guide]({{< relref "../guides/install.md" >}}) if you need to build it.
+Praxis is licensed under [Apache-2.0](https://github.com/praxis-proxy/praxis/blob/v0.7.2/LICENSE). Building the v0.7.2 source uses the repository-pinned Rust 1.96.0 toolchain; the manifest MSRV is Rust 1.92+. See the [installation guide]({{< relref "../guides/install.md" >}}) if you need to build it.

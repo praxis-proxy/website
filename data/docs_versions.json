@@ -155,7 +155,7 @@
         "ref": "main",
         "sha": "9ead9b27e7f8a1fdf3215d7f9d35d6ed9dfc5dd8"
       },
-      "status": "Grid v0.2.1 is a technical preview; review its release-scoped deployment requirements and limitations.",
+      "status": "Grid v0.2.2 is a technical preview; review its release-scoped deployment requirements and limitations.",
       "exclude": [],
       "required": [
         "docs/README.md",
