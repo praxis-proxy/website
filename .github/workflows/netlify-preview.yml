@@ -28,6 +28,7 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_SITE_NAME: ${{ vars.NETLIFY_SITE_NAME }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           if [ -z "${NETLIFY_AUTH_TOKEN:-}" ] || [ -z "${NETLIFY_SITE_ID:-}" ]; then
@@ -42,7 +43,7 @@ jobs:
             echo "::error::Could not resolve Netlify site name; set repository variable NETLIFY_SITE_NAME."
             exit 1
           fi
-          alias="deploy-preview-${{ github.event.pull_request.number }}"
+          alias="deploy-preview-${PR_NUMBER}"
           base_url="https://${alias}--${site_name}.netlify.app/"
           {
             echo "alias=${alias}"
@@ -61,15 +62,17 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_ALIAS: ${{ steps.preview.outputs.alias }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           output="$(npx --yes netlify-cli@23.11.0 deploy \
             --auth="${NETLIFY_AUTH_TOKEN}" \
             --site="${NETLIFY_SITE_ID}" \
             --dir=public \
-            --alias="${{ steps.preview.outputs.alias }}" \
+            --alias="${NETLIFY_ALIAS}" \
             --no-build \
-            --message="PR #${{ github.event.pull_request.number }} ${GITHUB_SHA}" \
+            --message="PR #${PR_NUMBER} ${GITHUB_SHA}" \
             --json)"
           printf '%s\n' "${output}"
           deploy_url="$(printf '%s' "${output}" | jq -r '.deploy_url // .ssl_url // .url // empty')"
@@ -85,19 +88,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PREVIEW_URL: ${{ steps.deploy.outputs.deploy_url }}
           BASE_URL: ${{ steps.preview.outputs.base_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           body="$(printf 'Netlify Deploy Preview: %s\n\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${BASE_URL}")"
           # Replace prior preview comment from this workflow when present.
           existing="$(gh api \
-            "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
             --jq '.[] | select(.user.type=="Bot" and (.body | startswith("Netlify Deploy Preview:"))) | .id' \
             | head -n1 || true)"
           if [ -n "${existing}" ]; then
             gh api \
               --method PATCH \
-              "repos/${{ github.repository }}/issues/comments/${existing}" \
+              "repos/${REPOSITORY}/issues/comments/${existing}" \
               -f body="${body}"
           else
-            gh pr comment "${{ github.event.pull_request.number }}" --body "${body}"
+            gh pr comment "${PR_NUMBER}" --body "${body}"
           fi
