@@ -41,7 +41,7 @@ Pull requests build a **Netlify Deploy Preview** through the existing Netlify Gi
 
 Production publishing stays on **GitHub Pages** via `make build` and [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Netlify production deploys are skipped so the two hosts do not compete.
 
-In the Netlify site settings, keep **Deploy Previews** enabled for pull requests. The build command runs `git submodule update --init --recursive` so `sources/{praxis,ai,policy}` are present for `tools/docs.py prepare` (those submodule URLs are HTTPS). If a submodule is private, grant the Netlify GitHub App or deploy key access to it. PR validation (`make check`) continues to run in GitHub Actions separately from the preview deploy.
+In the Netlify site settings, keep **Deploy Previews** enabled for pull requests. The build command runs `git submodule update --init --recursive` so `sources/{praxis,ai,policy,grid}` are present for `tools/docs.py prepare` (those submodule URLs are HTTPS). If a submodule is private, grant the Netlify GitHub App or deploy key access to it. PR validation (`make check`) continues to run in GitHub Actions separately from the preview deploy.
 
 ## Source revisions and releases
 
