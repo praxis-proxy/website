@@ -44,7 +44,7 @@ Required repository configuration:
 - Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` (Netlify project/API ID)
 - Optional variable: `NETLIFY_SITE_NAME` (site subdomain; looked up via the API when unset)
 
-Production publishing stays on **GitHub Pages** via `make build` and [`.github/workflows/pages.yml`](.github/workflows/pages.yml). [`netlify.toml`](netlify.toml) skips Netlify Git/App auto-builds so they do not duplicate Actions or Pages. PR validation (`make check`) remains a separate workflow.
+Production publishing stays on **GitHub Pages** via `make build` and [`.github/workflows/pages.yml`](.github/workflows/pages.yml). [`netlify.toml`](netlify.toml) skips Netlify Git/App auto-builds so they do not duplicate Actions or Pages. In the Netlify UI, also turn off automatic Deploy Previews / stop builds for the linked GitHub repo; otherwise the App still posts failing `netlify/.../deploy-preview` and related checks when it cancels those builds. PR validation (`make check`) remains a separate workflow.
 
 ## Source revisions and releases
 
